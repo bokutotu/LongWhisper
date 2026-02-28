@@ -1,0 +1,20 @@
+[project]
+name = "weights-converter"
+version = "0.1.0"
+description = "Convert Whisper .safetensors into a C++-friendly packed weight format"
+readme = "README.md"
+authors = [
+    { name = "bokutotu", email = "mushin.hudoushin@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.2.0,<3",
+    "safetensors>=0.5.0,<1",
+]
+
+[project.scripts]
+weights-converter = "weights_converter:main"
+
+[build-system]
+requires = ["uv_build>=0.9.3,<0.10.0"]
+build-backend = "uv_build"

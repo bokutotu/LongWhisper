@@ -1,0 +1,16 @@
+# Python cache/build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Local virtual environments
+.venv/
+tools/weights_converter/.venv/
+
+# Generated conversion outputs
+artifacts/
+
+# OS/editor noise
+.DS_Store
