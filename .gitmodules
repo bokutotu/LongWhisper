@@ -1,9 +1,12 @@
 [submodule "third_party/whisper-large-v3"]
 	path = third_party/whisper-large-v3
 	url = https://huggingface.co/openai/whisper-large-v3
-[submodule "thirdparty/googletest"]
-	path = thirdparty/googletest
+[submodule "third_party/googletest"]
+	path = third_party/googletest
 	url = https://github.com/google/googletest.git
-[submodule "thirdparty/cutlass"]
-	path = thirdparty/cutlass
+[submodule "third_party/cutlass"]
+	path = third_party/cutlass
 	url = https://github.com/NVIDIA/cutlass.git
+[submodule "third_party/rapidjson"]
+	path = third_party/rapidjson
+	url = https://github.com/Tencent/rapidjson.git

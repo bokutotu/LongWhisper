@@ -14,3 +14,6 @@ artifacts/
 
 # OS/editor noise
 .DS_Store
+.ccls-cache/
+.build/
+build/

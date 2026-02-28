@@ -6,6 +6,13 @@ CUDA-first Whisper experimentation project for long audio throughput.
 
 - Milestone 1 baseline assets are downloaded (`whisper-large-v3` as submodule).
 - A `uv` subproject exists for converting `.safetensors` into a simple C++-friendly packed format.
+- C++ dependencies are vendored as git submodules under `third_party/` (no system `rapidjson-dev` needed).
+
+## Build Dependencies
+
+- `cmake`
+- `gcc`/`g++`
+- `nvcc` (for CUDA parts)
 
 ## Model Download (already configured as submodule)
 

@@ -13,6 +13,38 @@ Build a Whisper ASR pipeline for long audio files (30 minutes to 1+ hour) that p
 9. Beam size is configurable, but must be fixed per run for reproducibility and fair comparison.
 10. Add a regression gate: token-level diff plus JA WER/CER on a fixed reference set before merging decoding/kernel changes.
 11. Cache encoder outputs for long files so decode-policy experiments can reuse encode results.
+12. Dependency policy: all third-party dependencies used by C++/CUDA code must be tracked as git submodules under `third_party/`; do not require system packages other than toolchain prerequisites (`cmake`, `gcc/g++`, `nvcc`).
 
 ## Milestones
 1. Milestone 1 (Baseline): Run Whisper `large-v3` on CUDA only, end-to-end, with no optimization applied.
+
+## Commit Message Template
+
+Use this template for commits:
+
+```text
+<type>(<scope>): <short summary>
+
+Why:
+- <problem this solves>
+
+What:
+- <change 1>
+- <change 2>
+- <change 3>
+
+Validation:
+- <test/command 1>
+- <test/command 2>
+
+Notes:
+- <optional migration/risk info>
+```
+
+Recommended types:
+- `feat`: new functionality
+- `fix`: bug fix
+- `refactor`: code restructuring without behavior change
+- `test`: test-only change
+- `docs`: documentation-only change
+- `build`: tooling/build/dependency change
