@@ -14,6 +14,21 @@ CUDA-first Whisper experimentation project for long audio throughput.
 - `gcc`/`g++`
 - `nvcc` (for CUDA parts)
 
+## Build And Run All Tests
+
+```bash
+cd /home/bokutotu/LongWhisper
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+If the build tree is already configured and built, you can also run all registered tests with:
+
+```bash
+cmake --build build --target test
+```
+
 ## Model Download (already configured as submodule)
 
 ```bash

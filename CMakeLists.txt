@@ -21,6 +21,14 @@ target_include_directories(longwhisper_assets
     ${LONGWHISPER_RAPIDJSON_INCLUDE}
 )
 
+add_library(longwhisper_vad STATIC
+  src/vad.cpp
+)
+target_include_directories(longwhisper_vad
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 option(LONGWHISPER_BUILD_TESTS "Build LongWhisper tests" ON)
 if(LONGWHISPER_BUILD_TESTS)
   include(CTest)
@@ -44,4 +52,18 @@ if(BUILD_TESTING)
 
   include(GoogleTest)
   gtest_discover_tests(assets_config_test)
+
+  add_executable(vad_test
+    tests/vad_test.cpp
+  )
+  target_link_libraries(vad_test
+    PRIVATE
+      longwhisper_vad
+      GTest::gtest_main
+  )
+  target_compile_definitions(vad_test
+    PRIVATE
+      LONGWHISPER_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+  )
+  gtest_discover_tests(vad_test)
 endif()
