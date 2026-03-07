@@ -3,4 +3,5 @@ target_sources(longwhisper
     dtype.cpp
     assets_config.cpp
     vad.cpp
+    wav.cpp
 )

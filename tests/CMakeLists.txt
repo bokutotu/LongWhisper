@@ -21,3 +21,7 @@ longwhisper_add_test(assets_config_test
 longwhisper_add_test(vad_test
   vad_test.cpp
 )
+
+longwhisper_add_test(wav_test
+  wav_test.cpp
+)

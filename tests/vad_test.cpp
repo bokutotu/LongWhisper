@@ -1,4 +1,5 @@
 #include "longwhisper/vad.h"
+#include "longwhisper/wav.h"
 
 #include <algorithm>
 #include <cmath>
@@ -19,11 +20,6 @@ namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 
-struct WavData {
-  int sample_rate_hz = 0;
-  std::vector<float> samples;
-};
-
 struct SampleInterval {
   int64_t begin = 0;
   int64_t end = 0;
@@ -40,120 +36,6 @@ std::filesystem::path RecitationWavPath() {
 std::filesystem::path RecitationReferencePath() {
   return SourceRoot() / "tests" / "data" /
          "RECITATION324_158.librosa_split.txt";
-}
-
-bool ReadUint16(std::ifstream* input, uint16_t* value) {
-  unsigned char bytes[2];
-  if (!input->read(reinterpret_cast<char*>(bytes), sizeof(bytes))) {
-    return false;
-  }
-  *value = static_cast<uint16_t>(bytes[0]) |
-           (static_cast<uint16_t>(bytes[1]) << 8);
-  return true;
-}
-
-bool ReadUint32(std::ifstream* input, uint32_t* value) {
-  unsigned char bytes[4];
-  if (!input->read(reinterpret_cast<char*>(bytes), sizeof(bytes))) {
-    return false;
-  }
-  *value = static_cast<uint32_t>(bytes[0]) |
-           (static_cast<uint32_t>(bytes[1]) << 8) |
-           (static_cast<uint32_t>(bytes[2]) << 16) |
-           (static_cast<uint32_t>(bytes[3]) << 24);
-  return true;
-}
-
-std::expected<WavData, std::string> LoadPcm16MonoWav(
-    const std::filesystem::path& path) {
-  std::ifstream input(path, std::ios::binary);
-  if (!input) {
-    return std::unexpected("Failed to open WAV file: " + path.string());
-  }
-
-  char riff[4];
-  char wave[4];
-  uint32_t riff_size = 0;
-  if (!input.read(riff, sizeof(riff)) || !ReadUint32(&input, &riff_size) ||
-      !input.read(wave, sizeof(wave))) {
-    return std::unexpected("Failed to read WAV header: " + path.string());
-  }
-  if (std::string(riff, sizeof(riff)) != "RIFF" ||
-      std::string(wave, sizeof(wave)) != "WAVE") {
-    return std::unexpected("Not a RIFF/WAVE file: " + path.string());
-  }
-
-  uint16_t audio_format = 0;
-  uint16_t channels = 0;
-  uint32_t sample_rate_hz = 0;
-  uint16_t bits_per_sample = 0;
-  std::vector<int16_t> pcm;
-
-  while (input) {
-    char chunk_id[4];
-    if (!input.read(chunk_id, sizeof(chunk_id))) {
-      break;
-    }
-
-    uint32_t chunk_size = 0;
-    if (!ReadUint32(&input, &chunk_size)) {
-      return std::unexpected("Failed to read WAV chunk size: " + path.string());
-    }
-
-    const std::string id(chunk_id, sizeof(chunk_id));
-    if (id == "fmt ") {
-      uint32_t byte_rate = 0;
-      uint16_t block_align = 0;
-      if (!ReadUint16(&input, &audio_format) ||
-          !ReadUint16(&input, &channels) ||
-          !ReadUint32(&input, &sample_rate_hz) ||
-          !ReadUint32(&input, &byte_rate) ||
-          !ReadUint16(&input, &block_align) ||
-          !ReadUint16(&input, &bits_per_sample)) {
-        return std::unexpected("Failed to parse fmt chunk: " + path.string());
-      }
-      if (chunk_size > 16) {
-        input.seekg(static_cast<std::streamoff>(chunk_size - 16),
-                    std::ios::cur);
-      }
-    } else if (id == "data") {
-      pcm.resize(chunk_size / sizeof(int16_t));
-      if (!input.read(reinterpret_cast<char*>(pcm.data()),
-                      static_cast<std::streamsize>(chunk_size))) {
-        return std::unexpected("Failed to read WAV data chunk: " +
-                               path.string());
-      }
-    } else {
-      input.seekg(static_cast<std::streamoff>(chunk_size), std::ios::cur);
-    }
-
-    if ((chunk_size % 2) != 0) {
-      input.seekg(1, std::ios::cur);
-    }
-  }
-
-  if (audio_format != 1) {
-    return std::unexpected("Only PCM WAV files are supported in tests: " +
-                           path.string());
-  }
-  if (channels != 1) {
-    return std::unexpected("Expected mono WAV file: " + path.string());
-  }
-  if (bits_per_sample != 16) {
-    return std::unexpected("Expected 16-bit PCM WAV file: " + path.string());
-  }
-  if (sample_rate_hz == 0 || pcm.empty()) {
-    return std::unexpected("WAV file did not contain audio samples: " +
-                           path.string());
-  }
-
-  WavData wav;
-  wav.sample_rate_hz = static_cast<int>(sample_rate_hz);
-  wav.samples.reserve(pcm.size());
-  for (const int16_t sample : pcm) {
-    wav.samples.push_back(static_cast<float>(sample) / 32768.0f);
-  }
-  return wav;
 }
 
 std::expected<std::vector<SampleInterval>, std::string> LoadReferenceIntervals(
@@ -388,14 +270,16 @@ TEST(VadTest, RejectsInvalidConfig) {
 }
 
 TEST(VadTest, Recitation324MatchesLibrosaVolumeVadReference) {
-  const auto wav = LoadPcm16MonoWav(RecitationWavPath());
+  const auto wav = LoadWav(RecitationWavPath());
   ASSERT_TRUE(wav.has_value()) << wav.error();
+  ASSERT_EQ(wav->metadata.channel_count, 1);
 
   const auto reference_intervals =
       LoadReferenceIntervals(RecitationReferencePath());
   ASSERT_TRUE(reference_intervals.has_value()) << reference_intervals.error();
 
-  const auto result = RunVolumeVad(wav->samples, wav->sample_rate_hz,
+  const auto result = RunVolumeVad(wav->channel_audio[0],
+                                   wav->metadata.sample_rate_hz,
                                    VadConfig{});
   ASSERT_TRUE(result.has_value()) << result.error();
 
