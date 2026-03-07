@@ -9,25 +9,15 @@ set(LONGWHISPER_THIRD_PARTY_DIR "third_party")
 set(LONGWHISPER_RAPIDJSON_INCLUDE
   "${CMAKE_CURRENT_SOURCE_DIR}/${LONGWHISPER_THIRD_PARTY_DIR}/rapidjson/include"
 )
-
-add_library(longwhisper_assets STATIC
-  src/dtype.cpp
-  src/assets_config.cpp
-)
-target_include_directories(longwhisper_assets
+set(LONGWHISPER_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
+add_library(longwhisper STATIC)
+target_include_directories(longwhisper
   PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${LONGWHISPER_INCLUDE_DIR}
   PRIVATE
     ${LONGWHISPER_RAPIDJSON_INCLUDE}
 )
-
-add_library(longwhisper_vad STATIC
-  src/vad.cpp
-)
-target_include_directories(longwhisper_vad
-  PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+add_subdirectory(src)
 
 option(LONGWHISPER_BUILD_TESTS "Build LongWhisper tests" ON)
 if(LONGWHISPER_BUILD_TESTS)
@@ -36,34 +26,6 @@ endif()
 
 if(BUILD_TESTING)
   add_subdirectory(${LONGWHISPER_THIRD_PARTY_DIR}/googletest EXCLUDE_FROM_ALL)
-
-  add_executable(assets_config_test
-    tests/assets_config_test.cpp
-  )
-  target_link_libraries(assets_config_test
-    PRIVATE
-      longwhisper_assets
-      GTest::gtest_main
-  )
-  target_compile_definitions(assets_config_test
-    PRIVATE
-      LONGWHISPER_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-  )
-
   include(GoogleTest)
-  gtest_discover_tests(assets_config_test)
-
-  add_executable(vad_test
-    tests/vad_test.cpp
-  )
-  target_link_libraries(vad_test
-    PRIVATE
-      longwhisper_vad
-      GTest::gtest_main
-  )
-  target_compile_definitions(vad_test
-    PRIVATE
-      LONGWHISPER_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-  )
-  gtest_discover_tests(vad_test)
+  add_subdirectory(tests)
 endif()

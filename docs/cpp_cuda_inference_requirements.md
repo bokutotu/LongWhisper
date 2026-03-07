@@ -1,5 +1,9 @@
 # C++/CUDA Whisper Inference Requirements
 
+This document describes the current `whisper-large-v3` target used by this
+repo. Older Whisper variants differ in some frontend details, most notably the
+log-Mel bin count.
+
 Having model weights is necessary but not sufficient. A Whisper runtime also needs:
 
 1. Tokenizer assets:
@@ -12,7 +16,9 @@ Having model weights is necessary but not sufficient. A Whisper runtime also nee
    - Dimensions (`d_model`, heads, layers, vocab size, max positions)
    - Special token IDs (BOS/EOS, language/task tokens, timestamp controls)
 3. Audio frontend parameters:
-   - log-Mel settings (`n_mels=80`, FFT/hop/window, sample rate 16 kHz)
+   - large-v3 log-Mel settings:
+     `n_mels=128`, `n_fft=400`, `hop_length=160`, `chunk_length=30`,
+     `nb_max_frames=3000`, sample rate `16 kHz`
    - chunking/stride policy for long audio
 4. Decode policy:
    - fixed beam size per run (reproducibility)
@@ -64,9 +70,9 @@ uv run weights-converter \
     {
       "name": "encoder.conv1.weight",
       "dtype": "float16",
-      "shape": [1280, 80, 3],
+      "shape": [1280, 128, 3],
       "offset": 0,
-      "nbytes": 614400,
+      "nbytes": 983040,
       "source_file": "model.safetensors"
     }
   ]
