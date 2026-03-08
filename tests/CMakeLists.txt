@@ -14,6 +14,11 @@ function(longwhisper_add_test name)
   gtest_discover_tests(${name})
 endfunction()
 
+add_library(whisper_preprocess_reference OBJECT
+  whisper_preprocess_reference.cpp
+  whisper_preprocess_reference.h
+)
+
 longwhisper_add_test(assets_config_test
   assets_config_test.cpp
 )
