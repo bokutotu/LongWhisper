@@ -11,6 +11,7 @@ struct Preprocess400SharedStorage {
   float2 stage25[detail::kFft400ComplexSize];
   float2 spec200[detail::kFft400ComplexSize];
   float2 fft[detail::kFft400OutputBins];
+  float power[detail::kFft400OutputBins];
 };
 
 static_assert(kPreprocess400Threads >= detail::kFft400OutputBins);
@@ -52,6 +53,15 @@ __device__ __forceinline__ void LoadWindowedFrame400(
   }
 }
 
+__device__ __forceinline__ void PowerSpectrum201(
+    const float2* __restrict__ fft_output, float* __restrict__ power_output) {
+  const int tid = static_cast<int>(threadIdx.x);
+  if (tid < kFft400OutputBins) {
+    const float2 value = fft_output[tid];
+    power_output[tid] = fmaf(value.x, value.x, value.y * value.y);
+  }
+}
+
 }  // namespace detail
 
 template <bool kOutputStft>
@@ -68,6 +78,10 @@ __device__ __forceinline__ void Preprocess400(
   __syncthreads();
 
   detail::Fft400(shared->input, shared->stage25, shared->spec200, shared->fft);
+  detail::PowerSpectrum201(shared->fft, shared->power);
+
+  // Keep shared power visible to the whole block for the next frontend stage.
+  __syncthreads();
 
   if constexpr (kOutputStft) {
     if (tid < detail::kFft400OutputBins) {
