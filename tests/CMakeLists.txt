@@ -1,32 +1,32 @@
-function(longwhisper_add_test name)
-  add_executable(${name}
-    ${ARGN}
-  )
-  target_link_libraries(${name}
-    PRIVATE
-      longwhisper
-      GTest::gtest_main
-  )
-  target_compile_definitions(${name}
-    PRIVATE
-      LONGWHISPER_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-  )
-  gtest_discover_tests(${name})
-endfunction()
-
-add_library(whisper_preprocess_reference OBJECT
+add_executable(longwhisper_tests
+  assets_config_test.cpp
+  vad_test.cpp
+  wav_test.cpp
+  preprocess400_test.cu
   whisper_preprocess_reference.cpp
   whisper_preprocess_reference.h
 )
 
-longwhisper_add_test(assets_config_test
-  assets_config_test.cpp
+target_link_libraries(longwhisper_tests
+  PRIVATE
+    longwhisper
+    GTest::gtest_main
 )
 
-longwhisper_add_test(vad_test
-  vad_test.cpp
+target_compile_definitions(longwhisper_tests
+  PRIVATE
+    LONGWHISPER_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
-longwhisper_add_test(wav_test
-  wav_test.cpp
+target_include_directories(longwhisper_tests
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
 )
+
+set_target_properties(longwhisper_tests PROPERTIES
+  CUDA_STANDARD 17
+  CUDA_STANDARD_REQUIRED ON
+  CUDA_SEPARABLE_COMPILATION ON
+)
+
+gtest_discover_tests(longwhisper_tests)

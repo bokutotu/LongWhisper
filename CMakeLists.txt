@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(LongWhisper LANGUAGES CXX)
+project(LongWhisper LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,6 +16,11 @@ target_include_directories(longwhisper
     ${LONGWHISPER_INCLUDE_DIR}
   PRIVATE
     ${LONGWHISPER_RAPIDJSON_INCLUDE}
+)
+set_target_properties(longwhisper PROPERTIES
+  CUDA_STANDARD 17
+  CUDA_STANDARD_REQUIRED ON
+  CUDA_SEPARABLE_COMPILATION ON
 )
 add_subdirectory(src)
 

@@ -1,50 +1,24 @@
-# Project Goal
-Build a Whisper ASR pipeline for long audio files (30 minutes to 1+ hour) that prioritizes maximum throughput by processing the full file with batch-oriented encoding and decoding (real-time performance is not required).
+## Goal
+Build a high-throughput Whisper ASR pipeline for long audio files (30 min to 1+ hour).
+Prefer full-file batch processing. Real-time performance is not a goal.
 
-## Project Policy
-1. Separate encode and decode stages: encode all chunks first, then run decode.
-2. Use continuous dynamic batching with step-level refill (remove finished sequences and immediately backfill new work).
-3. Bucket requests by estimated decode length before batching to reduce padding waste.
-4. Japanese-only operation: fix language to Japanese (`ja`) and skip language detection.
-5. Keep BF16 storage, but use FP32 accumulation for attention score/reduction and final logits.
-6. Use paged attention with paged KV cache allocation, stable page mapping, and deterministic free-list behavior.
-7. Overlap H2D/D2H transfers with compute using CUDA streams where possible.
-8. Use VAD as a scheduling hint (priority/order); do not hard-drop speech segments by default.
-9. Beam size is configurable, but must be fixed per run for reproducibility and fair comparison.
-10. Add a regression gate: token-level diff plus JA WER/CER on a fixed reference set before merging decoding/kernel changes.
-11. Cache encoder outputs for long files so decode-policy experiments can reuse encode results.
-12. Dependency policy: all third-party dependencies used by C++/CUDA code must be tracked as git submodules under `third_party/`; do not require system packages other than toolchain prerequisites (`cmake`, `gcc/g++`, `nvcc`).
+## Rules
+- Use C++23
+- Assume NVIDIA GPU
+- No backward compatibility
+- No fallbacks
 
-## Milestones
-1. Milestone 1 (Baseline): Run Whisper `large-v3` on CUDA only, end-to-end, with no optimization applied.
+## Priorities
+- Throughput > latency
+- Explicit failure > silent recovery
+- Simple batch architecture > streaming-oriented design
 
-## Commit Message Template
+## Non-Goals
+- Real-time ASR
+- CPU-only paths
+- Compatibility layers
 
-Use this template for commits:
-
-```text
-<type>(<scope>): <short summary>
-
-Why:
-- <problem this solves>
-
-What:
-- <change 1>
-- <change 2>
-- <change 3>
-
-Validation:
-- <test/command 1>
-- <test/command 2>
-
-Notes:
-- <optional migration/risk info>
-```
-
-Recommended types:
-- `feat`: new functionality
-- `fix`: bug fix
-- `refactor`: code restructuring without behavior change
-- `test`: test-only change
-- `docs`: documentation-only change
-- `build`: tooling/build/dependency change
+## Commits
+- Follow the style of recent full commit messages in this repository
+- Do not use one-line-only commit messages
+- Include why, what changed, and how it was validated
