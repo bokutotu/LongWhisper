@@ -15,6 +15,8 @@ namespace {
 constexpr double kMaxStftAbsError = 5e-3;
 constexpr double kMaxPowerAbsError = 5e-2;
 constexpr double kMaxPowerRelError = 1e-4;
+constexpr double kMaxMelAbsError = 2e-2;
+constexpr double kMaxMelRelError = 1e-4;
 constexpr int kHopLength = detail::kPreprocess400HopLength;
 
 template <typename T>
@@ -44,7 +46,8 @@ template <bool kOutputStft>
 __global__ void Preprocess400TestKernel(const float* __restrict__ input,
                                         int sample_count,
                                         float2* __restrict__ stft_output,
-                                        float* __restrict__ power_output) {
+                                        float* __restrict__ power_output,
+                                        float* __restrict__ mel_output) {
   __shared__ Preprocess400SharedStorage shared;
   const int tid = static_cast<int>(threadIdx.x);
   const int frame_index = static_cast<int>(blockIdx.x);
@@ -55,6 +58,11 @@ __global__ void Preprocess400TestKernel(const float* __restrict__ input,
     power_output[static_cast<size_t>(frame_index) * detail::kFft400OutputBins +
                  static_cast<size_t>(tid)] = shared.power[tid];
   }
+  if (tid < detail::kPreprocess400MelBins && mel_output != nullptr) {
+    mel_output[static_cast<size_t>(frame_index) *
+                   detail::kPreprocess400MelBins +
+               static_cast<size_t>(tid)] = shared.mel[tid];
+  }
 }
 
 template <bool kOutputStft>
@@ -62,6 +70,7 @@ cudaError_t RunPreprocess400(const float* device_input, int sample_count,
                              int frame_count,
                              float2* device_stft_output,
                              float* device_power_output,
+                             float* device_mel_output = nullptr,
                              cudaStream_t stream = nullptr) {
   if (sample_count < 0 || frame_count < 0) {
     return cudaErrorInvalidValue;
@@ -85,7 +94,8 @@ cudaError_t RunPreprocess400(const float* device_input, int sample_count,
       <<<frame_count, kPreprocess400Threads, 0, stream>>>(device_input,
                                                           sample_count,
                                                           device_stft_output,
-                                                          device_power_output);
+                                                          device_power_output,
+                                                          device_mel_output);
   return cudaGetLastError();
 }
 
@@ -150,6 +160,16 @@ std::vector<float> CpuReferencePower400(const std::vector<float>& input,
     output[static_cast<size_t>(k)] = std::norm(stft_bins[static_cast<size_t>(k)]);
   }
   return output;
+}
+
+std::vector<float> CpuReferenceMel400(const std::vector<float>& input,
+                                      int frame_index,
+                                      const test::Matrix& mel_filter_bank) {
+  const auto power_spectrum = CpuReferencePower400(input, frame_index);
+  if (power_spectrum.size() != static_cast<size_t>(detail::kFft400OutputBins)) {
+    return {};
+  }
+  return test::Mel128(power_spectrum, mel_filter_bank);
 }
 
 ::testing::AssertionResult MatchesNaiveCpuStftReference(
@@ -220,6 +240,41 @@ std::vector<float> CpuReferencePower400(const std::vector<float>& input,
   return ::testing::AssertionSuccess();
 }
 
+::testing::AssertionResult MatchesNaiveCpuMelReference(
+    const std::vector<float>& input, const test::Matrix& mel_filter_bank,
+    const std::vector<float>& gpu_mel_output, int frame_count) {
+  for (int frame_index = 0; frame_index < frame_count; ++frame_index) {
+    const auto expected = CpuReferenceMel400(input, frame_index, mel_filter_bank);
+    if (expected.size() != static_cast<size_t>(detail::kPreprocess400MelBins)) {
+      return ::testing::AssertionFailure()
+             << "Reference mel spectrum returned " << expected.size()
+             << " bins, expected " << detail::kPreprocess400MelBins;
+    }
+
+    for (int mel_index = 0; mel_index < detail::kPreprocess400MelBins;
+         ++mel_index) {
+      const double actual = static_cast<double>(
+          gpu_mel_output[static_cast<size_t>(frame_index) *
+                             detail::kPreprocess400MelBins +
+                         static_cast<size_t>(mel_index)]);
+      const double expected_value = static_cast<double>(expected[mel_index]);
+      const double error = std::abs(actual - expected_value);
+      const double tolerance =
+          kMaxMelAbsError + kMaxMelRelError * std::abs(expected_value);
+
+      if (error > tolerance) {
+        return ::testing::AssertionFailure()
+               << "Mel mismatch at frame " << frame_index << ", bin "
+               << mel_index << ": expected=" << expected_value
+               << ", actual=" << actual << ", error=" << error
+               << ", tolerance=" << tolerance;
+      }
+    }
+  }
+
+  return ::testing::AssertionSuccess();
+}
+
 }  // namespace
 
 TEST(Preprocess400Test, RejectsInvalidArguments) {
@@ -256,6 +311,7 @@ TEST(Preprocess400Test, MatchesNaiveCpuStftAndPowerForRandomInput) {
   std::mt19937 rng(123456789u);
   std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
   const std::vector<int> sample_counts = {1, 257, 400, 731, 2048};
+  const test::Matrix mel_filter_bank = test::MakeMelFilterBank128();
 
   for (const int sample_count : sample_counts) {
     const int frame_count = sample_count / kHopLength + 1;
@@ -271,13 +327,18 @@ TEST(Preprocess400Test, MatchesNaiveCpuStftAndPowerForRandomInput) {
         static_cast<size_t>(frame_count) * detail::kFft400OutputBins);
     std::vector<float> host_power_output(
         static_cast<size_t>(frame_count) * detail::kFft400OutputBins, 0.0f);
+    std::vector<float> host_mel_output(
+        static_cast<size_t>(frame_count) * detail::kPreprocess400MelBins,
+        0.0f);
     DeviceBuffer<float> device_input;
     DeviceBuffer<float2> device_stft_output;
     DeviceBuffer<float> device_power_output;
+    DeviceBuffer<float> device_mel_output;
 
     ASSERT_EQ(device_input.Allocate(host_input.size()), cudaSuccess);
     ASSERT_EQ(device_stft_output.Allocate(host_stft_output.size()), cudaSuccess);
     ASSERT_EQ(device_power_output.Allocate(host_power_output.size()), cudaSuccess);
+    ASSERT_EQ(device_mel_output.Allocate(host_mel_output.size()), cudaSuccess);
     ASSERT_EQ(cudaMemcpy(device_input.get(), host_input.data(),
                          host_input.size() * sizeof(float),
                          cudaMemcpyHostToDevice),
@@ -286,7 +347,8 @@ TEST(Preprocess400Test, MatchesNaiveCpuStftAndPowerForRandomInput) {
     ASSERT_EQ(
         RunPreprocess400<true>(device_input.get(), sample_count, frame_count,
                                device_stft_output.get(),
-                               device_power_output.get()),
+                               device_power_output.get(),
+                               device_mel_output.get()),
         cudaSuccess);
     ASSERT_EQ(cudaDeviceSynchronize(), cudaSuccess);
     ASSERT_EQ(cudaMemcpy(host_stft_output.data(), device_stft_output.get(),
@@ -297,11 +359,17 @@ TEST(Preprocess400Test, MatchesNaiveCpuStftAndPowerForRandomInput) {
                          host_power_output.size() * sizeof(float),
                          cudaMemcpyDeviceToHost),
               cudaSuccess);
+    ASSERT_EQ(cudaMemcpy(host_mel_output.data(), device_mel_output.get(),
+                         host_mel_output.size() * sizeof(float),
+                         cudaMemcpyDeviceToHost),
+              cudaSuccess);
 
     EXPECT_TRUE(
         MatchesNaiveCpuStftReference(host_input, host_stft_output, frame_count));
     EXPECT_TRUE(
         MatchesNaiveCpuPowerReference(host_input, host_power_output, frame_count));
+    EXPECT_TRUE(MatchesNaiveCpuMelReference(host_input, mel_filter_bank,
+                                            host_mel_output, frame_count));
   }
 }
 

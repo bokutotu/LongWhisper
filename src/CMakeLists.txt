@@ -6,4 +6,5 @@ target_sources(longwhisper
     wav.cpp
     fft400_constants.cu
     preprocess400_constants.cu
+    preprocess400_mel_constants.cu
 )

@@ -1,26 +1,27 @@
 #pragma once
 
+#include <cstdint>
+
 #include "fft400.cuh"
+#include "gemm.cuh"
 
 namespace longwhisper {
-
-inline constexpr int kPreprocess400Threads = 256;
-
-struct Preprocess400SharedStorage {
-  float input[detail::kFft400InputSize];
-  float2 stage25[detail::kFft400ComplexSize];
-  float2 spec200[detail::kFft400ComplexSize];
-  float2 fft[detail::kFft400OutputBins];
-  float power[detail::kFft400OutputBins];
-};
-
-static_assert(kPreprocess400Threads >= detail::kFft400OutputBins);
 
 namespace detail {
 
 inline constexpr int kPreprocess400HopLength = 160;
 inline constexpr int kPreprocess400CenterPad = kFft400InputSize / 2;
+inline constexpr int kPreprocess400MelBins = 128;
+inline constexpr int kPreprocess400MelFilterNonZeros = 394;
+inline constexpr int kPreprocess400MelMaxNonZerosPerRow = 9;
+
 extern __device__ __constant__ float g_preprocess400_hann[kFft400InputSize];
+extern __device__ __constant__ std::uint16_t
+    g_preprocess400_mel_row_offsets[kPreprocess400MelBins + 1];
+extern __device__ __constant__ std::uint16_t
+    g_preprocess400_mel_col_indices[kPreprocess400MelFilterNonZeros];
+extern __device__ __constant__ float
+    g_preprocess400_mel_values[kPreprocess400MelFilterNonZeros];
 
 __device__ __forceinline__ int ReflectPadIndex(int index, int sample_count) {
   if (sample_count <= 1) {
@@ -62,7 +63,29 @@ __device__ __forceinline__ void PowerSpectrum201(
   }
 }
 
+__device__ __forceinline__ void MelFilter128(
+    const float* __restrict__ power_input, float* __restrict__ mel_output) {
+  gemm::CsrMatVec<kPreprocess400MelMaxNonZerosPerRow>(
+      kPreprocess400MelBins, g_preprocess400_mel_row_offsets,
+      g_preprocess400_mel_col_indices, g_preprocess400_mel_values, power_input,
+      mel_output);
+}
+
 }  // namespace detail
+
+inline constexpr int kPreprocess400Threads = 256;
+
+struct Preprocess400SharedStorage {
+  float input[detail::kFft400InputSize];
+  float2 stage25[detail::kFft400ComplexSize];
+  float2 spec200[detail::kFft400ComplexSize];
+  float2 fft[detail::kFft400OutputBins];
+  float power[detail::kFft400OutputBins];
+  float mel[detail::kPreprocess400MelBins];
+};
+
+static_assert(kPreprocess400Threads >= detail::kFft400OutputBins);
+static_assert(kPreprocess400Threads >= detail::kPreprocess400MelBins);
 
 template <bool kOutputStft>
 __device__ __forceinline__ void Preprocess400(
@@ -79,8 +102,10 @@ __device__ __forceinline__ void Preprocess400(
 
   detail::Fft400(shared->input, shared->stage25, shared->spec200, shared->fft);
   detail::PowerSpectrum201(shared->fft, shared->power);
+  __syncthreads();
+  detail::MelFilter128(shared->power, shared->mel);
 
-  // Keep shared power visible to the whole block for the next frontend stage.
+  // Keep shared power and mel visible to the whole block for downstream stages.
   __syncthreads();
 
   if constexpr (kOutputStft) {
