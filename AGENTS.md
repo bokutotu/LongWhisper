@@ -17,8 +17,3 @@ Prefer full-file batch processing. Real-time performance is not a goal.
 - Real-time ASR
 - CPU-only paths
 - Compatibility layers
-
-## Commits
-- Follow the style of recent full commit messages in this repository
-- Do not use one-line-only commit messages
-- Include why, what changed, and how it was validated
