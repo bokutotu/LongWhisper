@@ -1,4 +1,4 @@
-#include "preprocess.cuh"
+#include "frontend.cuh"
 
 namespace longwhisper::detail {
 

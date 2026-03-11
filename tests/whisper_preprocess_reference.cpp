@@ -21,6 +21,13 @@ std::vector<float> PadOrTrimToWhisperChunk(const std::vector<float>& audio) {
   return padded;
 }
 
+int MaxFrameCountForAudio(size_t sample_count) {
+  if (sample_count == 0) {
+    return 0;
+  }
+  return static_cast<int>(sample_count / kWhisperHopLength) + 1;
+}
+
 size_t ReflectIndex(int index, size_t size) {
   if (size <= 1) {
     return 0;
@@ -231,18 +238,37 @@ void AffineNormalizeInPlace(std::vector<float>* log_mel_energies) {
   }
 }
 
-Matrix WhisperPreprocess(const std::vector<float>& audio) {
-  const std::vector<float> chunk_audio = PadOrTrimToWhisperChunk(audio);
-  const std::vector<float> centered_audio =
-      ReflectPad(chunk_audio, kWhisperCenterPad);
-  const Matrix mel_filter_bank = MakeMelFilterBank128();
+Matrix WhisperPreprocess(const std::vector<float>& audio,
+                         const WhisperPreprocessOptions& options) {
+  if (options.frame_count < 0) {
+    return {};
+  }
 
-  Matrix mel_spectrogram(kWhisperMelBins,
-                         std::vector<float>(kWhisperFrameCount, 0.0f));
+  const std::vector<float> reference_audio =
+      options.pad_or_trim_to_chunk ? PadOrTrimToWhisperChunk(audio) : audio;
+  Matrix mel_spectrogram(
+      kWhisperMelBins,
+      std::vector<float>(static_cast<size_t>(options.frame_count), 0.0f));
+  if (options.frame_count == 0) {
+    return mel_spectrogram;
+  }
+  if (reference_audio.empty()) {
+    return {};
+  }
+
+  const int max_frame_count = MaxFrameCountForAudio(reference_audio.size());
+  if (options.frame_count > max_frame_count) {
+    return {};
+  }
+
+  const std::vector<float> centered_audio =
+      ReflectPad(reference_audio, kWhisperCenterPad);
+  const Matrix mel_filter_bank = MakeMelFilterBank128();
   float peak_log_value = std::log10(kMinimumMelEnergy);
 
-  // Centered 30-second audio produces 3001 STFT frames; Whisper drops the last one.
-  for (int frame_index = 0; frame_index < kWhisperFrameCount; ++frame_index) {
+  // Centered audio produces sample_count / hop + 1 valid frames. The default
+  // Whisper path still uses 3000 out of the 3001 frames from a 30-second chunk.
+  for (int frame_index = 0; frame_index < options.frame_count; ++frame_index) {
     const std::vector<float> frame = ExtractFrame(centered_audio, frame_index);
     const std::vector<float> windowed = ApplyHann400(frame);
     const std::vector<std::complex<float>> dft_bins = Dft400(windowed);

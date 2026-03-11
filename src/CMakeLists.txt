@@ -4,7 +4,8 @@ target_sources(longwhisper
     assets_config.cpp
     vad.cpp
     wav.cpp
-    fft400_constants.cu
-    preprocess400_constants.cu
-    preprocess400_mel_constants.cu
+    preprocess/frontend_cuda.cu
+    preprocess/fft400_constants.cu
+    preprocess/preprocess400_constants.cu
+    preprocess/preprocess400_mel_constants.cu
 )

@@ -2,7 +2,7 @@ add_executable(longwhisper_tests
   assets_config_test.cpp
   vad_test.cpp
   wav_test.cpp
-  preprocess400_test.cu
+  preprocess_test.cu
   whisper_preprocess_reference.cpp
   whisper_preprocess_reference.h
 )
